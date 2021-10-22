@@ -1,0 +1,6 @@
+[package]
+name = "generation-viewer"
+version = "0.0.0"
+
+[dependencies]
+generation = { path = "../generation" }
