@@ -9,6 +9,10 @@ mod init;
 
 use biome::*;
 
+const CAMERA_ZOOM_SPEED: f32 = 0.5;
+const CAMERA_FOV_MIN: f32 = 10.0;
+const CAMERA_FOV_MAX: f32 = 500.0;
+
 fn main() {
     logger::init().unwrap();
     geng::setup_panic_handler();
@@ -24,76 +28,97 @@ struct GenerationState {
     camera: Camera2d,
     framebuffer_size: Vec2<f32>,
     generator: WorldGenerator<Biome>,
-    texture: Option<ugli::Texture>,
+    textures: Vec<(Vec2<i32>, ugli::Texture)>,
 }
 
 impl GenerationState {
-    fn redraw_texture(&mut self) {
-        let mut texture = ugli::Texture::new_with(
-            self.geng.ugli(),
-            self.framebuffer_size.map(|x| x as usize),
-            |_| Color::BLACK,
-        );
+    fn generate_view(&mut self) {
+        let chunk_size = self.generator.chunk_size();
+        let chunk_size = vec2(chunk_size.x, chunk_size.y);
 
         let camera_view = camera_view(&self.camera, self.framebuffer_size);
+        let view = self.generator.generate_area(aabb_to_area(camera_view));
 
-        let mut temp_framebuffer = ugli::Framebuffer::new_color(
-            self.geng.ugli(),
-            ugli::ColorAttachment::Texture(&mut texture),
-        );
+        self.textures.clear();
 
-        for (position, biome) in self.generator.view(aabb_to_area(camera_view)).tiles() {
-            self.geng.draw_2d().quad(
-                &mut temp_framebuffer,
-                &self.camera,
-                area_to_aabb(position),
-                biome.color(),
+        for (chunk_pos, chunk) in view.chunks() {
+            let mut texture =
+                ugli::Texture::new_with(self.geng.ugli(), chunk_size, |_| Color::WHITE);
+
+            let mut temp_framebuffer = ugli::Framebuffer::new_color(
+                self.geng.ugli(),
+                ugli::ColorAttachment::Texture(&mut texture),
             );
+
+            for (position, biome) in chunk {
+                let position = vec2(position.x as f32, position.y as f32);
+                self.geng.draw_2d().quad(
+                    &mut temp_framebuffer,
+                    &geng::PixelPerfectCamera,
+                    AABB::point(position).extend_positive(vec2(1.0, 1.0)),
+                    biome.color(),
+                );
+            }
+            self.textures
+                .push((vec2(chunk_pos.x, chunk_pos.y), texture));
         }
-        self.texture = Some(texture);
     }
 }
 
 impl geng::State for GenerationState {
+    fn handle_event(&mut self, event: geng::Event) {
+        match event {
+            geng::Event::Wheel { delta } => {
+                self.camera.fov -= delta as f32 * CAMERA_ZOOM_SPEED;
+                self.camera.fov = self.camera.fov.clamp(CAMERA_FOV_MIN, CAMERA_FOV_MAX);
+            }
+            geng::Event::KeyDown {
+                key: geng::Key::Space,
+            } => {
+                self.generate_view();
+            }
+            _ => (),
+        }
+    }
+
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer, Some(Color::BLACK), None);
         self.framebuffer_size = framebuffer.size().map(|x| x as f32);
 
-        let camera_view = camera_view(&self.camera, self.framebuffer_size);
-
-        if self.texture.is_none() {
-            self.redraw_texture();
+        let chunk_size = self.generator.chunk_size().map(|x| x as f32) * self.generator.tile_size();
+        let chunk_size = vec2(chunk_size.x, chunk_size.y);
+        for (chunk_pos, texture) in &self.textures {
+            let offset = chunk_pos.map(|x| x as f32) * chunk_size;
+            self.geng.draw_2d().textured(
+                framebuffer,
+                &self.camera,
+                &[
+                    TexturedVertex {
+                        a_pos: offset,
+                        a_color: Color::WHITE,
+                        a_vt: vec2(0.0, 1.0),
+                    },
+                    TexturedVertex {
+                        a_pos: offset + vec2(0.0, chunk_size.y),
+                        a_color: Color::WHITE,
+                        a_vt: vec2(0.0, 0.0),
+                    },
+                    TexturedVertex {
+                        a_pos: offset + vec2(chunk_size.x, chunk_size.y),
+                        a_color: Color::WHITE,
+                        a_vt: vec2(1.0, 0.0),
+                    },
+                    TexturedVertex {
+                        a_pos: offset + vec2(chunk_size.x, 0.0),
+                        a_color: Color::WHITE,
+                        a_vt: vec2(1.0, 1.0),
+                    },
+                ],
+                texture,
+                Color::WHITE,
+                ugli::DrawMode::TriangleFan,
+            );
         }
-
-        self.geng.draw_2d().textured(
-            framebuffer,
-            &self.camera,
-            &[
-                TexturedVertex {
-                    a_pos: camera_view.bottom_left(),
-                    a_color: Color::WHITE,
-                    a_vt: vec2(0.0, 0.0),
-                },
-                TexturedVertex {
-                    a_pos: camera_view.top_left(),
-                    a_color: Color::WHITE,
-                    a_vt: vec2(0.0, 1.0),
-                },
-                TexturedVertex {
-                    a_pos: camera_view.top_right(),
-                    a_color: Color::WHITE,
-                    a_vt: vec2(1.0, 1.0),
-                },
-                TexturedVertex {
-                    a_pos: camera_view.bottom_right(),
-                    a_color: Color::WHITE,
-                    a_vt: vec2(1.0, 0.0),
-                },
-            ],
-            self.texture.as_ref().unwrap(),
-            Color::WHITE,
-            ugli::DrawMode::TriangleFan,
-        );
     }
 }
 

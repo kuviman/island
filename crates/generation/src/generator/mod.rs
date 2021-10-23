@@ -4,16 +4,16 @@ use noise::NoiseFn;
 
 use super::*;
 
-mod tile_generation;
 mod chunk;
 mod generator;
 mod noise_parameters;
+mod tile_generation;
 mod view;
 
-pub use tile_generation::*;
 use chunk::*;
 use generator::*;
 pub use noise_parameters::*;
+pub use tile_generation::*;
 pub use view::*;
 
 const CHUNK_WIDTH: usize = 50;
@@ -35,7 +35,15 @@ impl<T> WorldGenerator<T> {
         }
     }
 
-    fn chunk_pos(&self, tile_position: Vector2<f32>) -> Vector2<i32> {
+    pub fn chunk_size(&self) -> Vector2<usize> {
+        CHUNK_SIZE
+    }
+
+    pub fn tile_size(&self) -> Vector2<f32> {
+        self.tile_size
+    }
+
+    pub fn tile_to_chunk_pos(&self, tile_position: Vector2<f32>) -> Vector2<i32> {
         Vector2::new(
             (tile_position.x / (CHUNK_WIDTH as f32 * self.tile_size.x)).floor() as i32,
             (tile_position.y / (CHUNK_HEIGHT as f32 * self.tile_size.y)).floor() as i32,
@@ -47,11 +55,11 @@ impl<T: Copy> WorldGenerator<T> {
     /// Generate a rectangular area and return its view. The generation might be bigger
     /// (but not smaller) than requested because it generates chunks.
     pub fn generate_area(&mut self, area: Area<f32>) -> GenerationView<T> {
-        let start = self.chunk_pos(area.start);
-        let end = self.chunk_pos(area.end);
+        let start = self.tile_to_chunk_pos(area.start);
+        let end = self.tile_to_chunk_pos(area.end);
 
-        for x in start.x..=end.x {
-            for y in start.y..=end.y {
+        for y in start.y..=end.y {
+            for x in start.x..=end.x {
                 let chunk_pos = Vector2::new(x, y);
                 self.chunks.entry(chunk_pos).or_insert_with(|| {
                     self.generator
@@ -66,8 +74,8 @@ impl<T: Copy> WorldGenerator<T> {
 
     /// View the generated area.
     pub fn view(&self, area: Area<f32>) -> GenerationView<T> {
-        let start = self.chunk_pos(area.start);
-        let end = self.chunk_pos(area.end);
+        let start = self.tile_to_chunk_pos(area.start);
+        let end = self.tile_to_chunk_pos(area.end);
 
         let dx = end.x - start.x + 1;
         let dy = end.y - start.y + 1;
@@ -81,8 +89,8 @@ impl<T: Copy> WorldGenerator<T> {
 
         let mut visible_chunks = Vec::with_capacity((dx * dy) as usize);
 
-        for x in start.x..=end.x {
-            for y in start.y..=end.y {
+        for y in start.y..=end.y {
+            for x in start.x..=end.x {
                 let chunk_pos = Vector2::new(x, y);
                 if let Some(chunk) = self.chunks.get(&chunk_pos) {
                     visible_chunks.push((chunk_pos, chunk));

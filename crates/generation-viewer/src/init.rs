@@ -7,10 +7,10 @@ impl GenerationState {
             camera: Camera2d {
                 center: Vec2::ZERO,
                 rotation: 0.0,
-                fov: 100.0,
+                fov: 200.0,
             },
             framebuffer_size: vec2(1.0, 1.0),
-            texture: None,
+            textures: Vec::new(),
             generator: {
                 let mut generator = WorldGenerator::new();
                 let gen = &mut generator.generator;
