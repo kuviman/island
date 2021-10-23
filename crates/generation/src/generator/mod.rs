@@ -1,18 +1,16 @@
 use std::collections::HashMap;
 
-use noise::NoiseFn;
-
 use super::*;
 
 mod chunk;
 mod generator;
-mod noise_parameters;
+mod multi_noise;
 mod tile_generation;
 mod view;
 
 use chunk::*;
 use generator::*;
-pub use noise_parameters::*;
+pub use multi_noise::*;
 pub use tile_generation::*;
 pub use view::*;
 
@@ -30,7 +28,7 @@ impl<T> WorldGenerator<T> {
     pub fn new() -> Self {
         Self {
             generator: Generator::new(),
-            tile_size: Vector2::new(1.5, 1.5),
+            tile_size: Vector2::new(2.0, 2.0),
             chunks: HashMap::new(),
         }
     }

@@ -46,7 +46,7 @@ impl Renderer {
                     &mut temp_framebuffer,
                     &geng::PixelPerfectCamera,
                     AABB::point(position).extend_positive(vec2(1.0, 1.0)),
-                    biome.color(),
+                    biome.map(|biome| biome.color()).unwrap_or(Color::BLACK),
                 );
             }
             self.textures

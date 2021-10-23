@@ -15,7 +15,7 @@ impl<'a, T> GenerationView<'a, T> {
     /// where tile_area is the **global** position and size of the tile
     /// (or the area that this tile covers),
     /// and tile is the generated tile.
-    pub fn tiles(&'a self) -> impl Iterator<Item = (Area<f32>, &'a T)> + 'a {
+    pub fn tiles(&'a self) -> impl Iterator<Item = (Area<f32>, &'a Tile<T>)> + 'a {
         let chunk_size = CHUNK_SIZE.map(|x| x as f32);
         self.chunks()
             .map(move |(chunk_pos, tiles)| {
@@ -41,7 +41,12 @@ impl<'a, T> GenerationView<'a, T> {
     /// and tile is the generated tile.
     pub fn chunks(
         &'a self,
-    ) -> impl Iterator<Item = (Vector2<i32>, impl Iterator<Item = (Vector2<usize>, &'a T)>)> {
+    ) -> impl Iterator<
+        Item = (
+            Vector2<i32>,
+            impl Iterator<Item = (Vector2<usize>, &'a Tile<T>)>,
+        ),
+    > {
         self.chunks
             .iter()
             .map(|&(chunk_pos, chunk_gen)| (chunk_pos, chunk_gen.iter()))

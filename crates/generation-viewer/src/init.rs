@@ -2,7 +2,7 @@ use super::*;
 
 impl GenerationState {
     pub fn new(geng: &Geng) -> Self {
-        Self {
+        let mut state = Self {
             geng: geng.clone(),
             framebuffer_size: vec2(1.0, 1.0),
             renderer: Renderer::new(geng),
@@ -17,60 +17,79 @@ impl GenerationState {
                 let gen = &mut generator.generator;
 
                 // Noises
-                gen.add_noise("Height", 0, NoiseParameters::new(100.0));
-                gen.add_noise("Temperature", 1, NoiseParameters::new(20.0));
-                gen.add_noise("Humidity", 2, NoiseParameters::new(20.0));
+                gen.add_noise(
+                    "Height",
+                    0,
+                    MultiNoiseProperties {
+                        min_value: -7.0,
+                        max_value: 13.0,
+                        scale: 100.0,
+                        octaves: 3,
+                        lacunarity: 2.0,
+                        persistance: 0.5,
+                    },
+                );
+                gen.add_noise(
+                    "Humidity",
+                    1,
+                    MultiNoiseProperties {
+                        min_value: 0.0,
+                        max_value: 1.0,
+                        scale: 50.0,
+                        octaves: 1,
+                        lacunarity: 1.0,
+                        persistance: 1.0,
+                    },
+                );
+                gen.add_noise(
+                    "Magic",
+                    2,
+                    MultiNoiseProperties {
+                        min_value: 0.0,
+                        max_value: 1.0,
+                        scale: 50.0,
+                        octaves: 1,
+                        lacunarity: 1.0,
+                        persistance: 1.0,
+                    },
+                );
 
                 // Biomes
                 gen.add_generation(
                     Biome::Ocean,
-                    TileGeneration::new(0.0, vec![("Height", -0.5)]),
+                    TileGeneration::new(vec![("Height", -7.0..=0.0)]),
                 )
                 .unwrap();
                 gen.add_generation(
                     Biome::Beach,
-                    TileGeneration::new(0.2, vec![("Height", 0.1)]),
-                )
-                .unwrap();
-                gen.add_generation(
-                    Biome::Lake,
-                    TileGeneration::new(
-                        0.1,
-                        vec![("Height", 0.3), ("Temperature", 0.1), ("Humidity", 0.5)],
-                    ),
+                    TileGeneration::new(vec![("Height", 0.0..=1.0)]),
                 )
                 .unwrap();
                 gen.add_generation(
                     Biome::Forest,
-                    TileGeneration::new(
-                        0.0,
-                        vec![("Height", 0.3), ("Temperature", -0.1), ("Humidity", -0.1)],
-                    ),
+                    TileGeneration::new(vec![("Height", 1.0..=9.0)]),
+                )
+                .unwrap();
+                gen.add_generation(
+                    Biome::Lake,
+                    TileGeneration::new(vec![("Height", 2.0..=8.0), ("Humidity", 0.9..=1.0)]),
                 )
                 .unwrap();
                 gen.add_generation(
                     Biome::Hills,
-                    TileGeneration::new(
-                        0.0,
-                        vec![("Height", 0.6), ("Temperature", -0.2), ("Humidity", -0.2)],
-                    ),
+                    TileGeneration::new(vec![("Height", 9.0..=13.0)]),
                 )
                 .unwrap();
                 gen.add_generation(
                     Biome::MagicForest,
-                    TileGeneration::new(
-                        0.1,
-                        vec![("Height", 0.3), ("Temperature", 0.4), ("Humidity", 0.3)],
-                    ),
+                    TileGeneration::new(vec![("Height", 2.0..=9.0), ("Magic", 0.8..=1.0)]),
                 )
                 .unwrap();
 
-                generator.generate_area(Area {
-                    start: Vector2::new(-50.0, -50.0),
-                    end: Vector2::new(50.0, 50.0),
-                });
                 generator
             },
-        }
+        };
+        state.generate_view();
+        state
     }
 }

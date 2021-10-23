@@ -1,11 +1,9 @@
-use noise::{OpenSimplex, Seedable};
-
 use super::*;
 
 pub type GenerationParameter = String;
 
 pub struct Generator<T> {
-    noises: HashMap<GenerationParameter, Noise>,
+    noises: HashMap<GenerationParameter, MultiNoise>,
     generations: Vec<(T, TileGeneration)>,
 }
 
@@ -17,13 +15,15 @@ impl<T> Generator<T> {
         }
     }
 
-    pub fn add_noise(&mut self, name: &str, noise_seed: u32, noise_parameters: NoiseParameters) {
+    pub fn add_noise(
+        &mut self,
+        name: &str,
+        noise_seed: u32,
+        noise_parameters: MultiNoiseProperties,
+    ) {
         self.noises.insert(
             name.to_owned(),
-            (
-                Box::new(OpenSimplex::new().set_seed(noise_seed)),
-                noise_parameters,
-            ),
+            MultiNoise::new(noise_seed, noise_parameters),
         );
     }
 
@@ -73,15 +73,29 @@ impl<T: Copy> Generator<T> {
         ChunkGeneration::new(generation)
     }
 
-    fn generate(&self, position: Vector2<f32>) -> T {
-        let gen = self
-            .generations
+    fn generate(&self, position: Vector2<f32>) -> Option<T> {
+        let noise_values: HashMap<GenerationParameter, f32> = self
+            .noises
             .iter()
-            .map(|(gen, generation)| (gen, generation.calculate_score(position, &self.noises)))
-            .max_by(|(_, score1), (_, score2)| score1.partial_cmp(score2).unwrap())
-            .unwrap()
-            .0;
-        *gen
+            .map(|(parameter, noise)| (parameter.to_owned(), noise.get(position)))
+            .collect();
+
+        self.generations
+            .iter()
+            .filter_map(|(gen, generation)| {
+                let mut total_score = 0.0;
+                for (parameter, range) in &generation.parameter_values {
+                    let value = noise_values[parameter];
+                    let score = (value - range.min).min(range.max - value);
+                    if score < 0.0 {
+                        return None;
+                    }
+                    total_score += score;
+                }
+                Some((gen, total_score))
+            })
+            .min_by(|(_, score1), (_, score2)| score1.partial_cmp(score2).unwrap())
+            .map(|(gen, _)| *gen)
     }
 }
 
