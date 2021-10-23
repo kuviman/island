@@ -6,12 +6,17 @@ use generation::*;
 
 mod biome;
 mod init;
+mod renderer;
 
 use biome::*;
+use renderer::*;
 
 const CAMERA_ZOOM_SPEED: f32 = 0.5;
 const CAMERA_FOV_MIN: f32 = 10.0;
-const CAMERA_FOV_MAX: f32 = 500.0;
+const CAMERA_FOV_MAX: f32 = 1000.0;
+
+const TILE_SIZE_MIN: f32 = 0.25;
+const TILE_SIZE_MAX: f32 = 10.0;
 
 fn main() {
     logger::init().unwrap();
@@ -25,44 +30,19 @@ fn main() {
 
 struct GenerationState {
     geng: Geng,
-    camera: Camera2d,
+    ui_camera: Camera2d,
     framebuffer_size: Vec2<f32>,
     generator: WorldGenerator<Biome>,
-    textures: Vec<(Vec2<i32>, ugli::Texture)>,
+    renderer: Renderer,
     dragging: Option<Dragging>,
 }
 
 impl GenerationState {
     fn generate_view(&mut self) {
-        let chunk_size = self.generator.chunk_size();
-        let chunk_size = vec2(chunk_size.x, chunk_size.y);
-
-        let camera_view = camera_view(&self.camera, self.framebuffer_size);
+        let camera_view = camera_view(&self.renderer.camera, self.framebuffer_size);
         let view = self.generator.generate_area(aabb_to_area(camera_view));
 
-        self.textures.clear();
-
-        for (chunk_pos, chunk) in view.chunks() {
-            let mut texture =
-                ugli::Texture::new_with(self.geng.ugli(), chunk_size, |_| Color::WHITE);
-
-            let mut temp_framebuffer = ugli::Framebuffer::new_color(
-                self.geng.ugli(),
-                ugli::ColorAttachment::Texture(&mut texture),
-            );
-
-            for (position, biome) in chunk {
-                let position = vec2(position.x as f32, position.y as f32);
-                self.geng.draw_2d().quad(
-                    &mut temp_framebuffer,
-                    &geng::PixelPerfectCamera,
-                    AABB::point(position).extend_positive(vec2(1.0, 1.0)),
-                    biome.color(),
-                );
-            }
-            self.textures
-                .push((vec2(chunk_pos.x, chunk_pos.y), texture));
-        }
+        self.renderer.update_textures(view);
     }
 }
 
@@ -77,8 +57,30 @@ impl geng::State for GenerationState {
     fn handle_event(&mut self, event: geng::Event) {
         match event {
             geng::Event::Wheel { delta } => {
-                self.camera.fov -= delta as f32 * CAMERA_ZOOM_SPEED;
-                self.camera.fov = self.camera.fov.clamp(CAMERA_FOV_MIN, CAMERA_FOV_MAX);
+                if self.geng.window().is_key_pressed(geng::Key::LCtrl) {
+                    let mut new_scale = if delta > 0.0 {
+                        self.generator.tile_size() * 2.0
+                    } else {
+                        self.generator.tile_size() / 2.0
+                    };
+
+                    // Check that the scale is not too small or too big
+                    let min = TILE_SIZE_MIN;
+                    let max = TILE_SIZE_MAX;
+                    new_scale.x = new_scale.x.clamp(min, max);
+                    new_scale.y = new_scale.y.clamp(min, max);
+                    self.generator.set_scale(GenerationScale::TileSize {
+                        x: new_scale.x,
+                        y: new_scale.y,
+                    });
+                } else {
+                    self.renderer.camera.fov -= delta as f32 * CAMERA_ZOOM_SPEED;
+                    self.renderer.camera.fov = self
+                        .renderer
+                        .camera
+                        .fov
+                        .clamp(CAMERA_FOV_MIN, CAMERA_FOV_MAX);
+                }
             }
             geng::Event::KeyDown {
                 key: geng::Key::Space,
@@ -91,7 +93,7 @@ impl geng::State for GenerationState {
             } => {
                 self.dragging = Some(Dragging::Move {
                     initial_mouse: position.map(|x| x as f32),
-                    initial_camera: self.camera.center,
+                    initial_camera: self.renderer.camera.center,
                 });
             }
             geng::Event::MouseUp {
@@ -108,14 +110,15 @@ impl geng::State for GenerationState {
                             initial_camera,
                         } => {
                             let position = self
+                                .renderer
                                 .camera
                                 .screen_to_world(self.framebuffer_size, position.map(|x| x as f32));
-                            let initial = self.camera.screen_to_world(
+                            let initial = self.renderer.camera.screen_to_world(
                                 self.framebuffer_size,
                                 initial_position.map(|x| x as f32),
                             );
                             let delta = initial - position;
-                            self.camera.center = *initial_camera + delta;
+                            self.renderer.camera.center = *initial_camera + delta;
                         }
                     }
                 }
@@ -127,41 +130,28 @@ impl geng::State for GenerationState {
     fn draw(&mut self, framebuffer: &mut ugli::Framebuffer) {
         ugli::clear(framebuffer, Some(Color::BLACK), None);
         self.framebuffer_size = framebuffer.size().map(|x| x as f32);
+        self.renderer.draw(framebuffer);
 
-        let chunk_size = self.generator.chunk_size().map(|x| x as f32) * self.generator.tile_size();
-        let chunk_size = vec2(chunk_size.x, chunk_size.y);
-        for (chunk_pos, texture) in &self.textures {
-            let offset = chunk_pos.map(|x| x as f32) * chunk_size;
-            self.geng.draw_2d().textured(
-                framebuffer,
-                &self.camera,
-                &[
-                    TexturedVertex {
-                        a_pos: offset,
-                        a_color: Color::WHITE,
-                        a_vt: vec2(0.0, 1.0),
-                    },
-                    TexturedVertex {
-                        a_pos: offset + vec2(0.0, chunk_size.y),
-                        a_color: Color::WHITE,
-                        a_vt: vec2(0.0, 0.0),
-                    },
-                    TexturedVertex {
-                        a_pos: offset + vec2(chunk_size.x, chunk_size.y),
-                        a_color: Color::WHITE,
-                        a_vt: vec2(1.0, 0.0),
-                    },
-                    TexturedVertex {
-                        a_pos: offset + vec2(chunk_size.x, 0.0),
-                        a_color: Color::WHITE,
-                        a_vt: vec2(1.0, 1.0),
-                    },
-                ],
-                texture,
-                Color::WHITE,
-                ugli::DrawMode::TriangleFan,
-            );
-        }
+        // UI
+        let camera_view = camera_view(&self.ui_camera, self.framebuffer_size);
+
+        self.geng.draw_2d().quad(
+            framebuffer,
+            &self.ui_camera,
+            AABB::point(camera_view.bottom_right())
+                .extend_left(30.0)
+                .extend_up(camera_view.height()),
+            Color::rgba(0.0, 0.0, 0.0, 0.5),
+        );
+
+        let tile_size = self.generator.tile_size() / self.renderer.camera.fov * self.ui_camera.fov;
+        self.geng.draw_2d().quad(
+            framebuffer,
+            &self.ui_camera,
+            AABB::point(camera_view.top_right() - vec2(10.0, 10.0))
+                .extend_symmetric(vec2(tile_size.x, tile_size.y) / 2.0),
+            Color::WHITE,
+        );
     }
 }
 

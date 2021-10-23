@@ -1,7 +1,8 @@
 use super::*;
 
 pub struct GenerationView<'a, T> {
-    pub(crate) tile_size: Vector2<f32>,
+    pub chunk_size: Vector2<usize>,
+    pub tile_size: Vector2<f32>,
     pub(crate) chunks: Vec<(
         Vector2<i32>,
         &'a ChunkGeneration<T, CHUNK_WIDTH, CHUNK_HEIGHT>,

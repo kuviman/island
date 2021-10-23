@@ -30,24 +30,26 @@ impl<T> WorldGenerator<T> {
     pub fn new() -> Self {
         Self {
             generator: Generator::new(),
-            tile_size: Vector2::new(1.0, 1.0),
+            tile_size: Vector2::new(1.5, 1.5),
             chunks: HashMap::new(),
         }
-    }
-
-    pub fn chunk_size(&self) -> Vector2<usize> {
-        CHUNK_SIZE
     }
 
     pub fn tile_size(&self) -> Vector2<f32> {
         self.tile_size
     }
 
-    pub fn tile_to_chunk_pos(&self, tile_position: Vector2<f32>) -> Vector2<i32> {
+    fn tile_to_chunk_pos(&self, tile_position: Vector2<f32>) -> Vector2<i32> {
         Vector2::new(
             (tile_position.x / (CHUNK_WIDTH as f32 * self.tile_size.x)).floor() as i32,
             (tile_position.y / (CHUNK_HEIGHT as f32 * self.tile_size.y)).floor() as i32,
         )
+    }
+
+    /// Change the generation scale. Clears all previous generations.
+    pub fn set_scale(&mut self, new_scale: GenerationScale) {
+        self.chunks.clear();
+        self.tile_size = new_scale.tile_size();
     }
 }
 
@@ -61,11 +63,9 @@ impl<T: Copy> WorldGenerator<T> {
         for y in start.y..=end.y {
             for x in start.x..=end.x {
                 let chunk_pos = Vector2::new(x, y);
-                self.chunks.entry(chunk_pos).or_insert_with(|| {
-                    self.generator
-                        .generate_chunk(chunk_pos, self.tile_size)
-                        .expect("Not enough noise parameters, should have been prevented earlier")
-                });
+                self.chunks
+                    .entry(chunk_pos)
+                    .or_insert_with(|| self.generator.generate_chunk(chunk_pos, self.tile_size));
             }
         }
 
@@ -82,6 +82,7 @@ impl<T: Copy> WorldGenerator<T> {
         if dx <= 0 || dy <= 0 {
             // Negative area
             return GenerationView {
+                chunk_size: CHUNK_SIZE,
                 tile_size: self.tile_size,
                 chunks: Vec::new(),
             };
@@ -99,15 +100,10 @@ impl<T: Copy> WorldGenerator<T> {
         }
 
         GenerationView {
+            chunk_size: CHUNK_SIZE,
             tile_size: self.tile_size,
             chunks: visible_chunks,
         }
-    }
-
-    /// Change the generation scale. Clears all previous generations.
-    pub fn set_scale(&mut self, new_scale: GenerationScale) {
-        self.chunks.clear();
-        self.tile_size = new_scale.tile_size();
     }
 }
 

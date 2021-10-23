@@ -56,24 +56,24 @@ impl<T: Copy> Generator<T> {
         &self,
         chunk_pos: Vector2<i32>,
         tile_size: Vector2<f32>,
-    ) -> Result<ChunkGeneration<T, CHUNK_WIDTH, CHUNK_HEIGHT>, GenerationError> {
+    ) -> ChunkGeneration<T, CHUNK_WIDTH, CHUNK_HEIGHT> {
         let chunk_size = CHUNK_SIZE.map(|x| x as f32);
-        let tile_start = chunk_pos.map(|x| x as f32) * chunk_size;
+        let tile_start = chunk_pos.map(|x| x as f32) * chunk_size * tile_size;
 
         let mut generation = Vec::with_capacity(CHUNK_WIDTH * CHUNK_HEIGHT);
         for y in 0..CHUNK_HEIGHT {
             for x in 0..CHUNK_WIDTH {
                 let position = Vector2::new(x, y).map(|x| x as f32);
                 let position = tile_start + position * tile_size;
-                let gen = self.generate(position)?;
+                let gen = self.generate(position);
                 generation.push(gen);
             }
         }
 
-        Ok(ChunkGeneration::new(generation))
+        ChunkGeneration::new(generation)
     }
 
-    fn generate(&self, position: Vector2<f32>) -> Result<T, GenerationError> {
+    fn generate(&self, position: Vector2<f32>) -> T {
         let gen = self
             .generations
             .iter()
@@ -81,7 +81,7 @@ impl<T: Copy> Generator<T> {
             .max_by(|(_, score1), (_, score2)| score1.partial_cmp(score2).unwrap())
             .unwrap()
             .0;
-        Ok(*gen)
+        *gen
     }
 }
 

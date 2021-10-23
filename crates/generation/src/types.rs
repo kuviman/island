@@ -30,6 +30,28 @@ impl<T: Add> Add<Self> for Vector2<T> {
     }
 }
 
+impl<T: Mul + Copy> Mul<T> for Vector2<T> {
+    type Output = Vector2<T::Output>;
+
+    fn mul(self, rhs: T) -> Self::Output {
+        Vector2 {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+
+impl<T: Div + Copy> Div<T> for Vector2<T> {
+    type Output = Vector2<T::Output>;
+
+    fn div(self, rhs: T) -> Self::Output {
+        Vector2 {
+            x: self.x / rhs,
+            y: self.y / rhs,
+        }
+    }
+}
+
 impl<T: Mul> Mul<Self> for Vector2<T> {
     type Output = Vector2<T::Output>;
 

@@ -4,14 +4,14 @@ impl GenerationState {
     pub fn new(geng: &Geng) -> Self {
         Self {
             geng: geng.clone(),
-            camera: Camera2d {
+            framebuffer_size: vec2(1.0, 1.0),
+            renderer: Renderer::new(geng),
+            dragging: None,
+            ui_camera: Camera2d {
                 center: Vec2::ZERO,
                 rotation: 0.0,
-                fov: 200.0,
+                fov: 100.0,
             },
-            framebuffer_size: vec2(1.0, 1.0),
-            textures: Vec::new(),
-            dragging: None,
             generator: {
                 let mut generator = WorldGenerator::new();
                 let gen = &mut generator.generator;
