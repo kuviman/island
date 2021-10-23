@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use super::*;
 
 pub struct MultiNoise {
@@ -33,7 +35,7 @@ impl MultiNoise {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MultiNoiseProperties {
     pub min_value: f32,
     pub max_value: f32,

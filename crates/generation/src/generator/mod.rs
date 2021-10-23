@@ -20,7 +20,7 @@ const CHUNK_SIZE: Vector2<usize> = Vector2::new(CHUNK_WIDTH, CHUNK_HEIGHT);
 
 pub struct WorldGenerator<T> {
     pub generator: Generator<T>,
-    tile_size: Vector2<f32>,
+    scale: GenerationScale,
     chunks: HashMap<Vector2<i32>, ChunkGeneration<T, CHUNK_WIDTH, CHUNK_HEIGHT>>,
 }
 
@@ -28,26 +28,27 @@ impl<T> WorldGenerator<T> {
     pub fn new() -> Self {
         Self {
             generator: Generator::new(),
-            tile_size: Vector2::new(2.0, 2.0),
+            scale: GenerationScale::TileSize { x: 1.0, y: 1.0 },
             chunks: HashMap::new(),
         }
     }
 
-    pub fn tile_size(&self) -> Vector2<f32> {
-        self.tile_size
-    }
-
-    fn tile_to_chunk_pos(&self, tile_position: Vector2<f32>) -> Vector2<i32> {
+    fn tile_to_chunk_pos(tile_position: Vector2<f32>, tile_size: Vector2<f32>) -> Vector2<i32> {
         Vector2::new(
-            (tile_position.x / (CHUNK_WIDTH as f32 * self.tile_size.x)).floor() as i32,
-            (tile_position.y / (CHUNK_HEIGHT as f32 * self.tile_size.y)).floor() as i32,
+            (tile_position.x / (CHUNK_WIDTH as f32 * tile_size.x)).floor() as i32,
+            (tile_position.y / (CHUNK_HEIGHT as f32 * tile_size.y)).floor() as i32,
         )
     }
 
-    /// Change the generation scale. Clears all previous generations.
+    /// Change the generation scale. Clears all previous generations
+    /// if scale is different from previous.
     pub fn set_scale(&mut self, new_scale: GenerationScale) {
+        if self.scale == new_scale {
+            return;
+        }
+
         self.chunks.clear();
-        self.tile_size = new_scale.tile_size();
+        self.scale = new_scale;
     }
 }
 
@@ -55,15 +56,16 @@ impl<T: Copy> WorldGenerator<T> {
     /// Generate a rectangular area and return its view. The generation might be bigger
     /// (but not smaller) than requested because it generates chunks.
     pub fn generate_area(&mut self, area: Area<f32>) -> GenerationView<T> {
-        let start = self.tile_to_chunk_pos(area.start);
-        let end = self.tile_to_chunk_pos(area.end);
+        let tile_size = self.scale.tile_size();
+        let start = Self::tile_to_chunk_pos(area.start, tile_size);
+        let end = Self::tile_to_chunk_pos(area.end, tile_size);
 
         for y in start.y..=end.y {
             for x in start.x..=end.x {
                 let chunk_pos = Vector2::new(x, y);
                 self.chunks
                     .entry(chunk_pos)
-                    .or_insert_with(|| self.generator.generate_chunk(chunk_pos, self.tile_size));
+                    .or_insert_with(|| self.generator.generate_chunk(chunk_pos, tile_size));
             }
         }
 
@@ -72,8 +74,9 @@ impl<T: Copy> WorldGenerator<T> {
 
     /// View the generated area.
     pub fn view(&self, area: Area<f32>) -> GenerationView<T> {
-        let start = self.tile_to_chunk_pos(area.start);
-        let end = self.tile_to_chunk_pos(area.end);
+        let tile_size = self.scale.tile_size();
+        let start = Self::tile_to_chunk_pos(area.start, tile_size);
+        let end = Self::tile_to_chunk_pos(area.end, tile_size);
 
         let dx = end.x - start.x + 1;
         let dy = end.y - start.y + 1;
@@ -81,7 +84,7 @@ impl<T: Copy> WorldGenerator<T> {
             // Negative area
             return GenerationView {
                 chunk_size: CHUNK_SIZE,
-                tile_size: self.tile_size,
+                tile_size,
                 chunks: Vec::new(),
             };
         }
@@ -99,13 +102,14 @@ impl<T: Copy> WorldGenerator<T> {
 
         GenerationView {
             chunk_size: CHUNK_SIZE,
-            tile_size: self.tile_size,
+            tile_size,
             chunks: visible_chunks,
         }
     }
 }
 
 /// Describes the scale of the generation.
+#[derive(Clone, Copy, PartialEq)]
 pub enum GenerationScale {
     /// Bigger tile size -> faster generation
     TileSize { x: f32, y: f32 },

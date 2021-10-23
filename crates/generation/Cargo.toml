@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 noise = "0.7.0"
+serde = "1.0"

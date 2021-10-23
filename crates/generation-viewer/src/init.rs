@@ -3,15 +3,11 @@ use super::*;
 impl GenerationState {
     pub fn new(geng: &Geng) -> Self {
         let mut state = Self {
-            geng: geng.clone(),
             framebuffer_size: vec2(1.0, 1.0),
             renderer: Renderer::new(geng),
+            ui_state: UIState::new(geng),
+            ui_controller: geng::ui::Controller::new(),
             dragging: None,
-            ui_camera: Camera2d {
-                center: Vec2::ZERO,
-                rotation: 0.0,
-                fov: 100.0,
-            },
             generator: {
                 let mut generator = WorldGenerator::new();
                 let gen = &mut generator.generator;

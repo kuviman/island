@@ -5,22 +5,38 @@ use geng::Camera2d;
 use generation::*;
 
 mod biome;
+mod config;
 mod init;
+mod interface;
 mod renderer;
 
 use biome::*;
+use config::*;
+use interface::*;
 use renderer::*;
 
 const CAMERA_ZOOM_SPEED: f32 = 0.5;
 const CAMERA_FOV_MIN: f32 = 10.0;
 const CAMERA_FOV_MAX: f32 = 1000.0;
 
-const TILE_SIZE_MIN: f32 = 0.25;
-const TILE_SIZE_MAX: f32 = 10.0;
+const RESOLUTION_MIN: u32 = 64;
+const RESOLUTION_MAX: u32 = 256;
 
 fn main() {
     logger::init().unwrap();
     geng::setup_panic_handler();
+
+    // Setup working directory
+    if let Some(dir) = std::env::var_os("CARGO_MANIFEST_DIR") {
+        std::env::set_current_dir(std::path::Path::new(&dir).join("static")).unwrap();
+    } else {
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            if let Some(path) = std::env::current_exe().unwrap().parent() {
+                std::env::set_current_dir(path).unwrap();
+            }
+        }
+    }
 
     let geng = Geng::new("Generation Preview");
     let state = GenerationState::new(&geng);
@@ -29,17 +45,24 @@ fn main() {
 }
 
 struct GenerationState {
-    geng: Geng,
-    ui_camera: Camera2d,
     framebuffer_size: Vec2<f32>,
     generator: WorldGenerator<Biome>,
-    renderer: Renderer,
     dragging: Option<Dragging>,
+    renderer: Renderer,
+    ui_state: UIState,
+    ui_controller: geng::ui::Controller,
 }
 
 impl GenerationState {
     fn generate_view(&mut self) {
         let camera_view = camera_view(&self.renderer.camera, self.framebuffer_size);
+
+        let tile_size = camera_view.width() / self.ui_state.resolution() as f32;
+        self.generator.set_scale(GenerationScale::TileSize {
+            x: tile_size,
+            y: tile_size,
+        });
+
         let view = self.generator.generate_area(aabb_to_area(camera_view));
 
         self.renderer.update_textures(view);
@@ -55,32 +78,21 @@ enum Dragging {
 
 impl geng::State for GenerationState {
     fn handle_event(&mut self, event: geng::Event) {
+        if self
+            .ui_controller
+            .handle_event(&mut self.ui_state.ui(), event.clone())
+        {
+            return;
+        }
+
         match event {
             geng::Event::Wheel { delta } => {
-                if self.geng.window().is_key_pressed(geng::Key::LCtrl) {
-                    let mut new_scale = if delta > 0.0 {
-                        self.generator.tile_size() * 2.0
-                    } else {
-                        self.generator.tile_size() / 2.0
-                    };
-
-                    // Check that the scale is not too small or too big
-                    let min = TILE_SIZE_MIN;
-                    let max = TILE_SIZE_MAX;
-                    new_scale.x = new_scale.x.clamp(min, max);
-                    new_scale.y = new_scale.y.clamp(min, max);
-                    self.generator.set_scale(GenerationScale::TileSize {
-                        x: new_scale.x,
-                        y: new_scale.y,
-                    });
-                } else {
-                    self.renderer.camera.fov -= delta as f32 * CAMERA_ZOOM_SPEED;
-                    self.renderer.camera.fov = self
-                        .renderer
-                        .camera
-                        .fov
-                        .clamp(CAMERA_FOV_MIN, CAMERA_FOV_MAX);
-                }
+                self.renderer.camera.fov -= delta as f32 * CAMERA_ZOOM_SPEED;
+                self.renderer.camera.fov = self
+                    .renderer
+                    .camera
+                    .fov
+                    .clamp(CAMERA_FOV_MIN, CAMERA_FOV_MAX);
             }
             geng::Event::KeyDown {
                 key: geng::Key::Space,
@@ -133,25 +145,32 @@ impl geng::State for GenerationState {
         self.renderer.draw(framebuffer);
 
         // UI
-        let camera_view = camera_view(&self.ui_camera, self.framebuffer_size);
+        self.ui_controller
+            .draw(&mut self.ui_state.ui(), framebuffer);
+        // let tile_size = self.generator.tile_size();
+        // self.ui_state.draw(
+        //     framebuffer,
+        //     vec2(tile_size.x, tile_size.y),
+        //     self.renderer.camera.fov,
+        // );
+    }
 
-        self.geng.draw_2d().quad(
-            framebuffer,
-            &self.ui_camera,
-            AABB::point(camera_view.bottom_right())
-                .extend_left(30.0)
-                .extend_up(camera_view.height()),
-            Color::rgba(0.0, 0.0, 0.0, 0.5),
-        );
+    fn update(&mut self, delta_time: f64) {
+        self.ui_controller
+            .update(&mut self.ui_state.ui(), delta_time);
 
-        let tile_size = self.generator.tile_size() / self.renderer.camera.fov * self.ui_camera.fov;
-        self.geng.draw_2d().quad(
-            framebuffer,
-            &self.ui_camera,
-            AABB::point(camera_view.top_right() - vec2(10.0, 10.0))
-                .extend_symmetric(vec2(tile_size.x, tile_size.y) / 2.0),
-            Color::WHITE,
-        );
+        let mut generate = false;
+        for event in self.ui_state.events() {
+            match event {
+                UIEvent::Generate => {
+                    generate = true;
+                }
+            }
+        }
+
+        if generate {
+            self.generate_view();
+        }
     }
 }
 
