@@ -11,6 +11,7 @@ impl GenerationState {
             },
             framebuffer_size: vec2(1.0, 1.0),
             textures: Vec::new(),
+            dragging: None,
             generator: {
                 let mut generator = WorldGenerator::new();
                 let gen = &mut generator.generator;

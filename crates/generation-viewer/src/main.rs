@@ -29,6 +29,7 @@ struct GenerationState {
     framebuffer_size: Vec2<f32>,
     generator: WorldGenerator<Biome>,
     textures: Vec<(Vec2<i32>, ugli::Texture)>,
+    dragging: Option<Dragging>,
 }
 
 impl GenerationState {
@@ -65,6 +66,13 @@ impl GenerationState {
     }
 }
 
+enum Dragging {
+    Move {
+        initial_mouse: Vec2<f32>,
+        initial_camera: Vec2<f32>,
+    },
+}
+
 impl geng::State for GenerationState {
     fn handle_event(&mut self, event: geng::Event) {
         match event {
@@ -76,6 +84,41 @@ impl geng::State for GenerationState {
                 key: geng::Key::Space,
             } => {
                 self.generate_view();
+            }
+            geng::Event::MouseDown {
+                button: geng::MouseButton::Left,
+                position,
+            } => {
+                self.dragging = Some(Dragging::Move {
+                    initial_mouse: position.map(|x| x as f32),
+                    initial_camera: self.camera.center,
+                });
+            }
+            geng::Event::MouseUp {
+                button: geng::MouseButton::Left,
+                ..
+            } => {
+                self.dragging = None;
+            }
+            geng::Event::MouseMove { position, .. } => {
+                if let Some(dragging) = &self.dragging {
+                    match dragging {
+                        Dragging::Move {
+                            initial_mouse: initial_position,
+                            initial_camera,
+                        } => {
+                            let position = self
+                                .camera
+                                .screen_to_world(self.framebuffer_size, position.map(|x| x as f32));
+                            let initial = self.camera.screen_to_world(
+                                self.framebuffer_size,
+                                initial_position.map(|x| x as f32),
+                            );
+                            let delta = initial - position;
+                            self.camera.center = *initial_camera + delta;
+                        }
+                    }
+                }
             }
             _ => (),
         }
@@ -125,7 +168,9 @@ impl geng::State for GenerationState {
 fn camera_view(camera: &Camera2d, framebuffer_size: Vec2<f32>) -> AABB<f32> {
     let vertical_fov = camera.fov;
     let horizontal_fov = framebuffer_size.x * vertical_fov / framebuffer_size.y;
-    AABB::ZERO.extend_symmetric(vec2(horizontal_fov, vertical_fov) / 2.0)
+    AABB::ZERO
+        .extend_symmetric(vec2(horizontal_fov, vertical_fov) / 2.0)
+        .translate(camera.center)
 }
 
 fn aabb_to_area<T>(aabb: AABB<T>) -> Area<T> {
