@@ -58,13 +58,23 @@ impl GenerationState {
     fn generate_view(&mut self) {
         let camera_view = camera_view(&self.renderer.camera, self.framebuffer_size);
 
+        // Update generation scale
         let tile_size = camera_view.width() / self.ui_state.resolution() as f32;
         self.generator.set_scale(GenerationScale::TileSize {
             x: tile_size,
             y: tile_size,
         });
 
-        let view = self.generator.generate_area(aabb_to_area(camera_view));
+        // Update noise parameters
+        for noise in self.ui_state.noises() {
+            self.generator
+                .generator
+                .get_noise_mut(&noise.name)
+                .unwrap()
+                .properties = noise.properties.clone();
+        }
+
+        let view = self.generator.generate_area(aabb_to_area(camera_view), true);
 
         self.renderer.update_textures(view);
     }
@@ -148,12 +158,6 @@ impl geng::State for GenerationState {
         // UI
         self.ui_controller
             .draw(&mut self.ui_state.ui(), framebuffer);
-        // let tile_size = self.generator.tile_size();
-        // self.ui_state.draw(
-        //     framebuffer,
-        //     vec2(tile_size.x, tile_size.y),
-        //     self.renderer.camera.fov,
-        // );
     }
 
     fn update(&mut self, delta_time: f64) {

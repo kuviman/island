@@ -73,6 +73,10 @@ impl UIState {
         std::mem::take(&mut self.events)
     }
 
+    pub fn noises(&self) -> &Vec<GenerationNoise> {
+        &self.noises
+    }
+
     pub fn ui<'a>(&'a mut self) -> impl Widget + 'a {
         ui::stack![
             &mut self.panel,

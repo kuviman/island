@@ -4,7 +4,7 @@ use super::*;
 
 pub struct MultiNoise {
     noise: Box<dyn noise::NoiseFn<[f64; 2]> + Sync + Send>,
-    properties: MultiNoiseProperties,
+    pub properties: MultiNoiseProperties,
 }
 
 impl MultiNoise {
@@ -12,9 +12,10 @@ impl MultiNoise {
         use noise::Seedable;
         Self {
             noise: Box::new(::noise::OpenSimplex::new().set_seed(seed)),
-            properties: properties,
+            properties,
         }
     }
+
     pub fn get(&self, pos: Vector2<f32>) -> f32 {
         let mut frequency = 1.0;
         let mut amplitude = 1.0;

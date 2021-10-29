@@ -33,6 +33,11 @@ impl<T> WorldGenerator<T> {
         }
     }
 
+    /// Clear the generated chunks.
+    pub fn clear(&mut self) {
+        self.chunks.clear();
+    }
+
     fn tile_to_chunk_pos(tile_position: Vector2<f32>, tile_size: Vector2<f32>) -> Vector2<i32> {
         Vector2::new(
             (tile_position.x / (CHUNK_WIDTH as f32 * tile_size.x)).floor() as i32,
@@ -55,7 +60,7 @@ impl<T> WorldGenerator<T> {
 impl<T: Copy> WorldGenerator<T> {
     /// Generate a rectangular area and return its view. The generation might be bigger
     /// (but not smaller) than requested because it generates chunks.
-    pub fn generate_area(&mut self, area: Area<f32>) -> GenerationView<T> {
+    pub fn generate_area(&mut self, area: Area<f32>, override_existing: bool) -> GenerationView<T> {
         let tile_size = self.scale.tile_size();
         let start = Self::tile_to_chunk_pos(area.start, tile_size);
         let end = Self::tile_to_chunk_pos(area.end, tile_size);
@@ -63,9 +68,15 @@ impl<T: Copy> WorldGenerator<T> {
         for y in start.y..=end.y {
             for x in start.x..=end.x {
                 let chunk_pos = Vector2::new(x, y);
-                self.chunks
-                    .entry(chunk_pos)
-                    .or_insert_with(|| self.generator.generate_chunk(chunk_pos, tile_size));
+                if override_existing {
+                    self.chunks.insert(
+                        chunk_pos,
+                        self.generator.generate_chunk(chunk_pos, tile_size),
+                    );
+                } else {
+                    let entry = self.chunks.entry(chunk_pos);
+                    entry.or_insert_with(|| self.generator.generate_chunk(chunk_pos, tile_size));
+                }
             }
         }
 
