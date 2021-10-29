@@ -27,6 +27,10 @@ impl<T> Generator<T> {
         );
     }
 
+    pub fn get_noise_mut(&mut self, name: &String) -> Option<&mut MultiNoise> {
+        self.noises.get_mut(name)
+    }
+
     pub fn add_generation(
         &mut self,
         generation: T,

@@ -8,6 +8,7 @@ mod biome;
 mod config;
 mod init;
 mod interface;
+mod property;
 mod renderer;
 
 use biome::*;
@@ -186,14 +187,5 @@ fn aabb_to_area<T>(aabb: AABB<T>) -> Area<T> {
     Area {
         start: Vector2::new(aabb.x_min, aabb.y_min),
         end: Vector2::new(aabb.x_max, aabb.y_max),
-    }
-}
-
-fn area_to_aabb<T>(area: Area<T>) -> AABB<T> {
-    AABB {
-        x_min: area.start.x,
-        x_max: area.end.x,
-        y_min: area.start.y,
-        y_max: area.end.y,
     }
 }

@@ -1,6 +1,8 @@
 use geng::ui;
 use geng::ui::*;
 
+use crate::property::{Property, SliderProperty};
+
 use super::*;
 
 pub struct UIState {
@@ -26,9 +28,9 @@ impl UIState {
         let theme = Rc::new(Theme::default(geng));
         Self {
             resolution: 64,
-            noises: vec![GenerationNoise {
-                name: "Height".to_owned(),
-                properties: MultiNoiseProperties {
+            noises: vec![GenerationNoise::new(
+                "Height",
+                MultiNoiseProperties {
                     min_value: -7.0,
                     max_value: 13.0,
                     scale: 100.0,
@@ -36,9 +38,8 @@ impl UIState {
                     lacunarity: 2.0,
                     persistance: 0.7,
                 },
-                button: Button::new(),
-                show_properties: false,
-            }],
+                &theme,
+            )],
 
             events: Vec::new(),
             panel: ColorBox::new(geng, Color::rgba(0.0, 0.0, 0.0, 0.5)),
@@ -119,36 +120,72 @@ impl UIState {
             .padding_right(50.0)
             .align(vec2(0.5, 1.0))
         ]
-        .align(vec2(1.0, 1.0))
+        .align(vec2(0.0, 1.0))
     }
 }
 
 impl GenerationNoise {
-    fn ui<'a>(&'a mut self, theme: &'a Rc<Theme>) -> impl Widget + 'a {
-        let properties = vec![
-            ("Value Min: ", self.properties.min_value.to_string()),
-            ("Value Max: ", self.properties.max_value.to_string()),
-            ("Scale: ", self.properties.scale.to_string()),
-            ("Octaves: ", self.properties.octaves.to_string()),
-            ("Lacunarity: ", self.properties.lacunarity.to_string()),
-            ("Persistance: ", self.properties.persistance.to_string()),
-        ];
-
+    pub fn ui<'a>(&'a mut self, theme: &'a Rc<Theme>) -> impl Widget + 'a {
         let mut widgets =
             vec![Box::new(Button::text(&mut self.button, &self.name, theme)) as Box<dyn Widget>];
 
         if self.show_properties {
-            widgets.push(Box::new(ui::column(
-                properties
-                    .into_iter()
-                    .map(|(name, value)| {
-                        Box::new(ui::row![
-                            Text::new(name, &theme.font, theme.text_size, theme.usable_color),
-                            Text::new(value, &theme.font, theme.text_size, theme.usable_color)
-                        ]) as Box<dyn Widget>
-                    })
-                    .collect(),
-            )) as Box<dyn Widget>);
+            fn slider<'a, T: Property>(
+                slider: &'a mut Slider,
+                name: &'a str,
+                value: &'a mut T,
+                range: RangeInclusive<f64>,
+                theme: &'a Rc<Theme>,
+            ) -> Box<dyn Widget + 'a> {
+                Box::new(SliderProperty::slider(slider, name, value, range, theme))
+                    as Box<dyn Widget>
+            }
+
+            let properties = vec![
+                slider(
+                    &mut self.sliders.value_min,
+                    "Value Min: ",
+                    &mut self.properties.min_value,
+                    -100.0..=100.0,
+                    theme,
+                ),
+                slider(
+                    &mut self.sliders.value_max,
+                    "Value Max: ",
+                    &mut self.properties.max_value,
+                    -100.0..=100.0,
+                    theme,
+                ),
+                slider(
+                    &mut self.sliders.scale,
+                    "Scale: ",
+                    &mut self.properties.scale,
+                    1.0..=500.0,
+                    theme,
+                ),
+                slider(
+                    &mut self.sliders.octaves,
+                    "Octaves: ",
+                    &mut self.properties.octaves,
+                    1.0..=10.0,
+                    theme,
+                ),
+                slider(
+                    &mut self.sliders.lacunarity,
+                    "Lacunarity: ",
+                    &mut self.properties.lacunarity,
+                    0.0..=10.0,
+                    theme,
+                ),
+                slider(
+                    &mut self.sliders.persistance,
+                    "Persistance: ",
+                    &mut self.properties.persistance,
+                    0.0..=1.0,
+                    theme,
+                ),
+            ];
+            widgets.extend(properties.into_iter());
         }
 
         ui::column(widgets)
