@@ -29,7 +29,7 @@ fn main() {
 
     // Setup working directory
     if let Some(dir) = std::env::var_os("CARGO_MANIFEST_DIR") {
-        std::env::set_current_dir(std::path::Path::new(&dir).join("static")).unwrap();
+        // std::env::set_current_dir(std::path::Path::new(&dir).join("static")).unwrap();
     } else {
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -74,7 +74,9 @@ impl GenerationState {
                 .properties = noise.properties.clone();
         }
 
-        let view = self.generator.generate_area(aabb_to_area(camera_view), true);
+        let view = self
+            .generator
+            .generate_area(aabb_to_area(camera_view), true);
 
         self.renderer.update_textures(view);
     }

@@ -5,4 +5,5 @@ edition = "2021"
 
 [dependencies]
 generation = { path = "../generation" }
-geng = "0.8.0"
+geng = { version = "0.8.0" }
+clap = "=3.0.0-beta.5"
